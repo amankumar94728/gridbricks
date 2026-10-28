@@ -18,3 +18,4 @@ backend/static/
 .env
 .DS_Store
 Thumbs.db
+*.tsbuildinfo
