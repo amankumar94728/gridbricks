@@ -11,6 +11,15 @@ decisions made in January 2026** (delivery days 2 Jan – 1 Feb 2026).
 - **Live app:** _add the Vercel / Heroku URL here after deploying_
 - **Demo video:** _add the unlisted YouTube link here_
 
+![Day-ahead view](docs/screenshots/day-ahead.png)
+
+<table>
+  <tr>
+    <td width="72%"><img src="docs/screenshots/accuracy.png" alt="Forecast accuracy view" /></td>
+    <td width="28%"><img src="docs/screenshots/mobile.png" alt="Mobile layout" /></td>
+  </tr>
+</table>
+
 ---
 
 ## What the app shows
@@ -22,7 +31,11 @@ decisions made in January 2026** (delivery days 2 Jan – 1 Feb 2026).
 | **Explorer** | Any date range at any forecast horizon (0–48h): the latest forecast published at least *N* hours before each hour, compared with actuals. |
 
 The decision time (default **11:00 UK on D-1**, GB day-ahead auction gate closure) and the
-learning window (default 14 days) can be changed in the UI.
+learning window (default 14 days) can be changed in the UI. Each view has its own URL
+(`#day-ahead`, `#accuracy`, `#explorer`), so it can be bookmarked or shared.
+
+The layout is responsive from 320 px phones to wide desktops: KPI tiles reflow, charts resize
+and thin out their axis labels, and the navigation collapses to a compact tab bar.
 
 ### Headline findings (January 2026, 11:00 decision)
 
@@ -87,9 +100,14 @@ Accuracy also degrades with lead time (MAE about 1.7 GW at 0h to 2.3 GW at 48h).
   `DATA_SOURCE=live` to fetch from the API on startup instead, or run the snapshot script.
 - **Backend**: all logic is in `analysis.py` as pure functions over an in-memory index
   (`WindData`, with a sorted publish-time index per target and `bisect` for "latest forecast as of
-  t"). `main.py` only validates inputs and serialises. Results are cached per parameter set.
-- **Frontend**: three views, a small `useApi` hook (cancels stale requests), typed API models
-  that mirror the backend, and UK-local time formatting throughout.
+  t"). `main.py` only validates inputs; Pydantic response models (`schemas.py`) document every
+  field in the OpenAPI spec and validate output. Results are cached in memory per parameter set,
+  and responses carry `Cache-Control` headers (5 min for API data, immutable for hashed assets).
+- **Frontend**: three lazily loaded views (Recharts is only fetched when a chart is shown), a
+  small `useApi` hook (cancels stale requests, keeps previous data while reloading, retry on
+  error), typed API models that mirror the backend, an error boundary per view, skeleton
+  loading states, and UK-local time formatting throughout. Self-hosted Inter font and an inline
+  icon set, so there are no runtime CDN dependencies.
 - **One deployable**: in Docker the FastAPI app serves the built SPA as well as `/api`, so there
   is one image, one port and no CORS. On Vercel the SPA is static and `/api/*` is rewritten to a
   Python serverless function (`api/index.py`) that wraps the same app.
@@ -103,7 +121,8 @@ Accuracy also degrades with lead time (MAE about 1.7 GW at 0h to 2.3 GW at 48h).
 │   │   ├── config.py        # scope (Jan 2026), market conventions, data source settings
 │   │   ├── elexon.py        # Elexon BMRS client (chunked, retried) + snapshot read/write
 │   │   ├── analysis.py      # forecast/actual pairing, error statistics, views served by the API
-│   │   └── main.py          # FastAPI routes; also serves the built frontend if present
+│   │   ├── schemas.py       # Pydantic response models (OpenAPI docs)
+│   │   └── main.py          # FastAPI routes, caching headers; serves the built frontend
 │   ├── data/
 │   │   └── elexon_wind_jan2026.json.gz   # committed data snapshot
 │   ├── scripts/snapshot.py  # refresh the snapshot from the live API
@@ -112,18 +131,24 @@ Accuracy also degrades with lead time (MAE about 1.7 GW at 0h to 2.3 GW at 48h).
 │   └── pyproject.toml       # pytest + ruff config
 ├── frontend/
 │   ├── src/
-│   │   ├── App.tsx          # shell, tabs, shared decision settings
+│   │   ├── App.tsx          # shell: header, URL-hash tabs, shared decision settings
 │   │   ├── api.ts           # typed API models + useApi hook
-│   │   ├── format.ts        # number/date formatting (Europe/London)
-│   │   ├── styles.css
-│   │   └── components/      # DayAhead, Accuracy, Explorer, shared ui
+│   │   ├── format.ts        # number/date formatting (Europe/London) + format.test.ts
+│   │   ├── hooks.ts         # useMediaQuery / useIsMobile / useDebounced
+│   │   ├── theme.ts         # chart colours and axis styling
+│   │   ├── styles.css       # design tokens, components, responsive breakpoints
+│   │   └── components/      # DayAhead, Accuracy, Explorer, ui, icons, ErrorBoundary
+│   ├── eslint.config.js, .prettierrc.json
 │   ├── index.html, vite.config.ts, tsconfig.json, package.json
 ├── api/index.py             # Vercel serverless entry (imports backend/app)
 ├── vercel.json, .vercelignore, requirements.txt   # Vercel config (requirements → backend)
 ├── Dockerfile, docker-compose.yml, .dockerignore   # single-image build
 ├── heroku.yml               # Heroku container deploy
-├── docs/DEMO_SCRIPT.md      # outline for the two-part demo video
-└── .github/workflows/ci.yml # lint, tests, frontend build, Docker smoke test
+├── docs/
+│   ├── DEMO_SCRIPT.md       # outline for the two-part demo video
+│   └── screenshots/
+├── .editorconfig, .gitattributes
+└── .github/workflows/ci.yml # lint, format, tests (backend + frontend), build, Docker smoke test
 ```
 
 ## Running it
@@ -159,7 +184,7 @@ npm run dev            # http://localhost:5173, proxies /api to :8000
 
 ```bash
 cd backend && pytest -q && ruff check . && ruff format --check .
-cd frontend && npm run build      # type-checks with tsc, then builds
+cd frontend && npm run lint && npm run format:check && npm test && npm run build
 ```
 
 ### Refreshing the data
@@ -179,6 +204,15 @@ cd backend && python -m scripts.snapshot
 | `GET /api/health` | Liveness |
 
 Interactive OpenAPI docs are at `/docs`.
+
+### Configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DATA_SOURCE` | `snapshot` | `snapshot` loads `backend/data`; `live` fetches from Elexon at startup |
+| `PORT` | `8000` | Port the container listens on (set by Heroku) |
+| `ALLOWED_ORIGINS` | empty | Comma-separated origins for CORS; not needed when the frontend is same-origin |
+| `API_URL` | `http://localhost:8000` | Dev only: where the Vite dev server proxies `/api` |
 
 ## Deployment
 

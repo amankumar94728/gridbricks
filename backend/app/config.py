@@ -44,3 +44,9 @@ SNAPSHOT_PATH = DATA_DIR / "elexon_wind_jan2026.json.gz"
 DATA_SOURCE = os.getenv("DATA_SOURCE", "snapshot")
 
 STATIC_DIR = Path(os.getenv("STATIC_DIR", Path(__file__).resolve().parent.parent / "static"))
+
+APP_VERSION = "1.1.0"
+
+# Comma-separated origins allowed to call the API cross-origin. Empty (default) means
+# same-origin only, which is how the app is deployed (Docker and Vercel).
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]

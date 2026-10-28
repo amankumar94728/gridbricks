@@ -1,96 +1,133 @@
-import { useState } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { apiUrl, useApi, type Meta } from "./api";
-import { Accuracy } from "./components/Accuracy";
-import { DayAhead } from "./components/DayAhead";
-import { Explorer } from "./components/Explorer";
-import { Field, Status } from "./components/ui";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { IconCalendar, IconCompass, IconDatabase, IconGauge, IconSliders, Logo } from "./components/icons";
+import { ErrorState, Field, LoadingPage, Segmented } from "./components/ui";
 import { fmtDateTime, fmtDay, pad2 } from "./format";
 
-const TABS = [
-  { id: "day-ahead", label: "Day-ahead view", blurb: "What the desk saw at the auction, and how it played out" },
-  { id: "accuracy", label: "Forecast accuracy", blurb: "How far to trust the forecast, in numbers" },
-  { id: "explorer", label: "Explorer", blurb: "Any date range, any forecast horizon" },
-] as const;
+// Each view (and Recharts with it) loads on demand, keeping the first paint light.
+const DayAhead = lazy(() => import("./components/DayAhead").then((m) => ({ default: m.DayAhead })));
+const Accuracy = lazy(() => import("./components/Accuracy").then((m) => ({ default: m.Accuracy })));
+const Explorer = lazy(() => import("./components/Explorer").then((m) => ({ default: m.Explorer })));
 
-type TabId = (typeof TABS)[number]["id"];
+const TABS: { id: TabId; label: string; short: string; icon: ReactNode }[] = [
+  { id: "day-ahead", label: "Day-ahead view", short: "Day-ahead", icon: <IconCalendar /> },
+  { id: "accuracy", label: "Forecast accuracy", short: "Accuracy", icon: <IconGauge /> },
+  { id: "explorer", label: "Explorer", short: "Explorer", icon: <IconCompass /> },
+];
+
+type TabId = "day-ahead" | "accuracy" | "explorer";
+
+const tabFromHash = (): TabId => {
+  const id = window.location.hash.slice(1);
+  return TABS.some((t) => t.id === id) ? (id as TabId) : "day-ahead";
+};
+
+/** Current tab, kept in the URL hash so views can be bookmarked and shared. */
+function useTab(): TabId {
+  const [tab, setTab] = useState(tabFromHash);
+  useEffect(() => {
+    const onHash = () => setTab(tabFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  return tab;
+}
 
 export default function App() {
   const meta = useApi<Meta>(apiUrl("meta"));
-  const [tab, setTab] = useState<TabId>("day-ahead");
+  const tab = useTab();
   const [decisionHour, setDecisionHour] = useState(11);
   const [lookbackDays, setLookbackDays] = useState(14);
+  const m = meta.data;
 
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">
-          <img src="/favicon.svg" alt="" width={32} height={32} />
-          <div>
-            <h1>Wind Forecast Desk</h1>
-            <p>GB national wind · day-ahead procurement support</p>
-          </div>
+        <div className="topbar-inner">
+          <a className="brand" href="#day-ahead">
+            <Logo />
+            <div>
+              <h1>Wind Forecast Desk</h1>
+              <p>GB wind · day-ahead procurement</p>
+            </div>
+          </a>
+          <nav className="tabs" aria-label="Views">
+            {TABS.map((t) => (
+              <a
+                key={t.id}
+                href={`#${t.id}`}
+                className={tab === t.id ? "tab active" : "tab"}
+                aria-current={tab === t.id ? "page" : undefined}
+              >
+                {t.icon}
+                <span className="tab-label">{t.label}</span>
+                <span className="tab-short">{t.short}</span>
+              </a>
+            ))}
+          </nav>
+          {m && (
+            <div className="scope" title="Scope of this pilot">
+              <span className="dot" />
+              Decisions {fmtDay(m.decisionFirst)} – {fmtDay(m.decisionLast)} 2026
+            </div>
+          )}
         </div>
-        {meta.data && (
-          <div className="scope">
-            Decisions {fmtDay(meta.data.decisionFirst)} – {fmtDay(meta.data.decisionLast)} 2026
-          </div>
-        )}
       </header>
 
-      <nav className="tabs" role="tablist">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            className={tab === t.id ? "tab active" : "tab"}
-            onClick={() => setTab(t.id)}
-          >
-            <span>{t.label}</span>
-            <small>{t.blurb}</small>
-          </button>
-        ))}
-      </nav>
-
       <main className="content">
-        <Status loading={meta.loading} error={meta.error} />
-        {meta.data && (
+        {meta.error && <ErrorState message={meta.error} onRetry={meta.reload} />}
+        {!m && !meta.error && <LoadingPage />}
+        {m && (
           <>
             {tab !== "explorer" && (
-              <div className="settings">
+              <section className="settings" aria-label="Decision settings">
+                <div className="settings-title">
+                  <IconSliders size={16} />
+                  Decision settings
+                </div>
                 <Field label="Decision time (D-1, UK)">
                   <select value={decisionHour} onChange={(e) => setDecisionHour(Number(e.target.value))}>
                     {Array.from({ length: 24 }, (_, h) => (
                       <option key={h} value={h}>
-                        {pad2(h)}:00{h === meta.data!.defaultDecisionHour ? " · auction gate closure" : ""}
+                        {pad2(h)}:00{h === m.defaultDecisionHour ? " · auction gate closure" : ""}
                       </option>
                     ))}
                   </select>
                 </Field>
                 <Field label="Learn errors from the last">
-                  <select value={lookbackDays} onChange={(e) => setLookbackDays(Number(e.target.value))}>
-                    {[3, 7, 14, 21].filter((d) => d <= meta.data!.maxLookbackDays).map((d) => (
-                      <option key={d} value={d}>
-                        {d} days
-                      </option>
-                    ))}
-                  </select>
+                  <Segmented
+                    ariaLabel="Learning window"
+                    value={lookbackDays}
+                    onChange={setLookbackDays}
+                    options={[3, 7, 14, 21]
+                      .filter((d) => d <= m.maxLookbackDays)
+                      .map((d) => ({ value: d, label: `${d} days` }))}
+                  />
                 </Field>
-              </div>
+              </section>
             )}
-            {tab === "day-ahead" && (
-              <DayAhead meta={meta.data} decisionHour={decisionHour} lookbackDays={lookbackDays} />
-            )}
-            {tab === "accuracy" && <Accuracy decisionHour={decisionHour} lookbackDays={lookbackDays} />}
-            {tab === "explorer" && <Explorer meta={meta.data} />}
+            <ErrorBoundary key={tab}>
+              <Suspense fallback={<LoadingPage />}>
+                {tab === "day-ahead" && (
+                  <DayAhead meta={m} decisionHour={decisionHour} lookbackDays={lookbackDays} />
+                )}
+                {tab === "accuracy" && <Accuracy decisionHour={decisionHour} lookbackDays={lookbackDays} />}
+                {tab === "explorer" && <Explorer meta={m} />}
+              </Suspense>
+            </ErrorBoundary>
           </>
         )}
       </main>
 
       <footer className="footer">
-        Data: {meta.data?.source ?? "Elexon BMRS"}. Forecasts published daily at{" "}
-        {meta.data?.publishHoursUtc.join(", ") ?? "…"} UTC.
-        {meta.data?.fetchedAt && <> Snapshot taken {fmtDateTime(meta.data.fetchedAt)}.</>}
+        <div className="footer-inner">
+          <span>
+            <IconDatabase size={14} /> {m?.source ?? "Elexon BMRS"}
+          </span>
+          {m && <span>Forecasts published daily at {m.publishHoursUtc.join(" · ")} UTC</span>}
+          {m?.fetchedAt && <span>Data snapshot {fmtDateTime(m.fetchedAt)}</span>}
+        </div>
       </footer>
     </div>
   );

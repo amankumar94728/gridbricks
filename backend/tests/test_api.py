@@ -59,3 +59,15 @@ def test_explorer(client):
 def test_explorer_validates_range(client):
     r = client.get("/api/explorer", params={"start": "2026-01-11", "end": "2026-01-10"})
     assert r.status_code == 422
+
+
+def test_api_responses_are_cacheable(client):
+    r = client.get("/api/meta")
+    assert r.headers["cache-control"] == "public, max-age=300"
+    assert "cache-control" not in client.get("/api/health").headers
+
+
+def test_openapi_documents_response_fields(client):
+    spec = client.get("/openapi.json").json()
+    stats = spec["components"]["schemas"]["Stats"]["properties"]
+    assert {"mae", "rmse", "bias", "nmaePct", "within1GwPct"} <= stats.keys()

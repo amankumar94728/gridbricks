@@ -2,7 +2,12 @@
 const UK = "Europe/London";
 
 const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: UK, hour: "2-digit", minute: "2-digit" });
-const dayFmt = new Intl.DateTimeFormat("en-GB", { timeZone: UK, weekday: "short", day: "numeric", month: "short" });
+const dayFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: UK,
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
 const dateTimeFmt = new Intl.DateTimeFormat("en-GB", {
   timeZone: UK,
   weekday: "short",
@@ -30,7 +35,8 @@ export const fmtSignedGw = (mw: number | null | undefined, digits = 2) =>
 export const fmtGwh = (mwh: number | null | undefined) =>
   mwh == null ? "–" : `${(mwh / 1000).toLocaleString("en-GB", { maximumFractionDigits: 0 })} GWh`;
 
-export const fmtPct = (v: number | null | undefined, digits = 0) => (v == null ? "–" : `${v.toFixed(digits)}%`);
+export const fmtPct = (v: number | null | undefined, digits = 0) =>
+  v == null ? "–" : `${v.toFixed(digits)}%`;
 
 export const fmtHours = (h: number) => `${Number.isInteger(h) ? h : h.toFixed(1)}h`;
 
