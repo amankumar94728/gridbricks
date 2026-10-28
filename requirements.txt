@@ -1,0 +1,2 @@
+# Used by Vercel's Python runtime (api/index.py). Source of truth is backend/requirements.txt.
+-r backend/requirements.txt

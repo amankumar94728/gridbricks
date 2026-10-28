@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Build output copied into the backend image
+backend/static/
+
+# Tooling / OS
+.vercel/
+.playwright-mcp/
+.env
+.DS_Store
+Thumbs.db

@@ -1,0 +1,6 @@
+backend/.venv
+backend/static
+backend/tests
+**/node_modules
+**/__pycache__
+.playwright-mcp

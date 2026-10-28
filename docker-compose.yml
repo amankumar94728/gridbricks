@@ -1,0 +1,8 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # "snapshot" uses backend/data; "live" re-fetches from Elexon on startup.
+      DATA_SOURCE: snapshot
