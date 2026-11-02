@@ -228,10 +228,3 @@ git push heroku main
 ```
 
 `heroku.yml` builds the same Dockerfile; the container listens on `$PORT`.
-
-## Use of AI tools
-
-This project was built with help from **Claude Code (Anthropic)**, an AI coding assistant. It was
-used to read the brief, explore the Elexon datasets, and draft the backend, frontend, tests,
-Docker/Vercel configuration and this README. The analysis choices and headline numbers were
-checked against the raw API data and are covered by automated tests.
