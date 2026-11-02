@@ -8,7 +8,7 @@ expected to provide.
 Scope (per the brief): national wind outturn and forecasts from Elexon only, for **purchase
 decisions made in January 2026** (delivery days 2 Jan – 1 Feb 2026).
 
-- **Live app:** _add the Vercel / Heroku URL here after deploying_
+- **Live app:** https://gridbricks-kappa.vercel.app
 - **Demo video:** _add the unlisted YouTube link here_
 
 ![Day-ahead view](docs/screenshots/day-ahead.png)
@@ -141,7 +141,7 @@ Accuracy also degrades with lead time (MAE about 1.7 GW at 0h to 2.3 GW at 48h).
 │   ├── eslint.config.js, .prettierrc.json
 │   ├── index.html, vite.config.ts, tsconfig.json, package.json
 ├── api/index.py             # Vercel serverless entry (imports backend/app)
-├── vercel.json, .vercelignore, requirements.txt   # Vercel config (requirements → backend)
+├── vercel.json, .vercelignore, requirements.txt   # Vercel config (mirrors backend deps)
 ├── Dockerfile, docker-compose.yml, .dockerignore   # single-image build
 ├── heroku.yml               # Heroku container deploy
 ├── docs/

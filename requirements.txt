@@ -1,2 +1,5 @@
-# Used by Vercel's Python runtime (api/index.py). Source of truth is backend/requirements.txt.
--r backend/requirements.txt
+# Used by Vercel's Python runtime (api/index.py). Keep in sync with backend/requirements.txt.
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+httpx==0.28.1
+tzdata==2025.2
